@@ -1,19 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Image, Platform, CameraRoll, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Image, Platform, Alert } from 'react-native';
 import { Camera } from 'expo-camera';
 import * as FileSystem from 'expo-file-system';
 import * as Location from 'expo-location';
+import * as MediaLibrary from 'expo-media-library';
 
 export default function App() {
   const [hasPermission, setHasPermission] = useState(null);
   const [cameraRef, setCameraRef] = useState(null);
   const [capturedPhotos, setCapturedPhotos] = useState([]);
   const [currentLocation, setCurrentLocation] = useState(null);
-  const [step, setStep] = useState(1); // Current step in the process
+  const [step, setaStep] = useState(1); // Current step in the process
+  const [productImageTaken, setProductImageTaken] = useState(false); // Track if product image has been taken
+  const [barcodeImageTaken, setBarcodeImageTaken] = useState(false); // Track if barcode image has been taken
 
   useEffect(() => {
     (async () => {
-      const { status: cameraStatus } = await Camera.requestPermissionsAsync();
+      const { status: cameraStatus } = await Camera.requestCameraPermissionsAsync();
       const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
       setHasPermission(cameraStatus === 'granted' && locationStatus === 'granted');
     })();
@@ -47,12 +50,14 @@ export default function App() {
       to: filename,
     });
     setCapturedPhotos([...capturedPhotos, filename]);
-    if (capturedPhotos.length === 0) {
-      // If it's the first image, request barcode image next
-      setStep(2);
-    } else {
-      // Otherwise, log the captured photos
-      console.log('Captured Photos:', capturedPhotos);
+
+    if (!productImageTaken) {
+      // If product image is not taken yet, mark it as taken and set step to 2
+      setProductImageTaken(true);
+      setaStep(2);
+    } else if (!barcodeImageTaken) {
+      // If barcode image is not taken yet, mark it as taken
+      setBarcodeImageTaken(true);
     }
 
     // Save the image to the gallery
@@ -63,7 +68,7 @@ export default function App() {
 
   const saveToGallery = async (uri) => {
     try {
-      await CameraRoll.saveToCameraRoll(uri, 'photo');
+      await MediaLibrary.saveToLibraryAsync(uri);
       console.log('Image saved to gallery');
     } catch (error) {
       console.log('Error saving image to gallery:', error);
@@ -76,21 +81,17 @@ export default function App() {
       console.log('Permission to access location was denied');
       return;
     }
-  
+
     let location = await Location.getCurrentPositionAsync({});
     console.log('Location:', location.coords);
     setCurrentLocation(location.coords); // Update currentLocation state
   };
 
-  const handleConfirmFirstImage = () => {
-    // Move to the next step (capturing the barcode image)
-    setStep(2);
-  };
-
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Move to the next step (submitting the data)
-    setStep(3);
-    // Here you can implement your submission logic
+    setaStep(3);
+    // Get location before showing alert
+    await getLocation();
   };
 
   return (
@@ -107,7 +108,7 @@ export default function App() {
             style={styles.camera}
             type={Camera.Constants.Type.back}
           />
-          <TouchableOpacity style={styles.button} onPress={takePicture}>
+          <TouchableOpacity style={styles.button} onPress={takePicture} disabled={productImageTaken}>
             <Text style={styles.buttonText}>Take Picture</Text>
           </TouchableOpacity>
         </View>
@@ -119,9 +120,11 @@ export default function App() {
             style={styles.camera}
             type={Camera.Constants.Type.back}
           />
-          <TouchableOpacity style={styles.button} onPress={takePicture}>
-            <Text style={styles.buttonText}>Take Barcode Picture</Text>
-          </TouchableOpacity>
+          {!barcodeImageTaken && (
+            <TouchableOpacity style={styles.button} onPress={takePicture}>
+              <Text style={styles.buttonText}>Take Barcode Picture</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
             <Text style={styles.buttonText}>Submit</Text>
           </TouchableOpacity>
