@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Image, Platform, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Image, Platform, Alert, Button } from 'react-native';
 import { Camera } from 'expo-camera';
+import { CameraView } from 'expo-camera/next';
 import * as FileSystem from 'expo-file-system';
 import * as Location from 'expo-location';
 import * as MediaLibrary from 'expo-media-library';
@@ -43,6 +44,13 @@ export default function App() {
     }
   };
 
+  const handleBarCodeScanned = ({ type, data }) => {
+    alert(`Bar code with type ${type} and data ${data} has been scanned!`);
+    setBarcodeImageTaken(true);
+    setaStep(3); // Move to the next step after scanning barcode
+    handleSubmit();
+  };
+
   const savePicture = async (photo) => {
     const filename = FileSystem.documentDirectory + `captured_photo_${capturedPhotos.length + 1}.jpg`;
     await FileSystem.copyAsync({
@@ -55,9 +63,6 @@ export default function App() {
       // If product image is not taken yet, mark it as taken and set step to 2
       setProductImageTaken(true);
       setaStep(2);
-    } else if (!barcodeImageTaken) {
-      // If barcode image is not taken yet, mark it as taken
-      setBarcodeImageTaken(true);
     }
 
     // Save the image to the gallery
@@ -75,24 +80,26 @@ export default function App() {
     }
   };
 
+  const handleSubmit = async () => {
+    // Get location before showing alert
+    const location = await getLocation();
+    setCurrentLocation(location); // Update currentLocation state
+    // Move to the next step (submitting the data)
+    setaStep(3);
+  };
+  
   const getLocation = async () => {
     let { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
       console.log('Permission to access location was denied');
-      return;
+      return null;
     }
-
+  
     let location = await Location.getCurrentPositionAsync({});
     console.log('Location:', location.coords);
-    setCurrentLocation(location.coords); // Update currentLocation state
+    return location.coords; // Return the location coordinates
   };
-
-  const handleSubmit = async () => {
-    // Move to the next step (submitting the data)
-    setaStep(3);
-    // Get location before showing alert
-    await getLocation();
-  };
+  
 
   return (
     <View style={styles.container}>
@@ -115,16 +122,16 @@ export default function App() {
       ) : step === 2 ? (
         // Step 2: Capture barcode image
         <View style={styles.cameraContainer}>
-          <Camera
-            ref={(ref) => setCameraRef(ref)}
-            style={styles.camera}
-            type={Camera.Constants.Type.back}
+          <CameraView
+            onBarcodeScanned={handleBarCodeScanned}
+            barcodeScannerSettings={{
+              barcodeTypes: [
+                "qr",
+                "pdf417"
+            ],
+            }}
+            style={StyleSheet.absoluteFillObject}
           />
-          {!barcodeImageTaken && (
-            <TouchableOpacity style={styles.button} onPress={takePicture}>
-              <Text style={styles.buttonText}>Take Barcode Picture</Text>
-            </TouchableOpacity>
-          )}
           <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
             <Text style={styles.buttonText}>Submit</Text>
           </TouchableOpacity>
@@ -165,6 +172,13 @@ const styles = StyleSheet.create({
     width: '100%',
     position: 'relative',
   },
+  barcodeContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    width: '70%',
+    height: '70%',
+    position: 'relative',
+  },
   camera: {
     flex: 1,
   },
@@ -172,14 +186,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 20,
     left: '45%',
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    borderRadius: 50,
-    padding: 15,
-  },
-  submitButton: {
-    position: 'absolute',
-    bottom: 20,
-    left: '25%',
     backgroundColor: 'rgba(255, 255, 255, 0.5)',
     borderRadius: 50,
     padding: 15,
@@ -213,5 +219,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  }, 
+  container2: {
+    flex: 1,
+    flexDirection: "column",
+    justifyContent: "center",
   },
 });
